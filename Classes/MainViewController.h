@@ -8,12 +8,14 @@
 // notice and use restrictions.
 //
 // See the use restrictions at http://help.arcgis.com/en/sdk/10.0/usageRestrictions.htm
-// ESRI sources: Geocoding Sample, TableOfContentsSample 
+// ESRI sources: Geocoding Sample, TableOfContentsSample
+
+// DESCRIPTION: Food Research Atlas - search bar, table of contents, popup location for iPad and iPhone
 
 #import <UIKit/UIKit.h>
 #import <ArcGIS/ArcGIS.h>
 
-@interface MainViewController : UIViewController <AGSMapViewLayerDelegate, UISearchBarDelegate, AGSLocatorDelegate, AGSCalloutDelegate > {
+@interface MainViewController : UIViewController <AGSMapViewLayerDelegate, UISearchBarDelegate, AGSLocatorDelegate, AGSCalloutDelegate, AGSMapViewTouchDelegate, AGSIdentifyTaskDelegate > {
 	AGSMapView *_mapView;
 	UIButton* _infoButton;
     
@@ -25,6 +27,14 @@
     
     //Only used with iPad
 	UIPopoverController* _popOverController;
+    
+    // location popup
+    //AGSMapView *_mapView;
+	//AGSGraphicsLayer *_graphicsLayer;
+    AGSGraphic *_graphic;
+	AGSIdentifyTask *_identifyTask;
+	AGSIdentifyParameters *_identifyParams;
+    AGSPoint* _mappoint;
 }
 
 @property (nonatomic, strong) IBOutlet AGSMapView *mapView;
@@ -36,6 +46,14 @@
 @property (nonatomic, strong) AGSGraphicsLayer *graphicsLayer;
 @property (nonatomic, strong) AGSLocator *locator;
 @property (nonatomic, strong) AGSCalloutTemplate *calloutTemplate;
+
+// location popup
+//@property (nonatomic, retain) IBOutlet AGSMapView *mapView;
+//@property (nonatomic, retain) AGSGraphicsLayer *graphicsLayer;
+@property (nonatomic, retain) AGSIdentifyTask *identifyTask;
+@property (nonatomic, retain) AGSIdentifyParameters *identifyParams;
+@property (nonatomic, retain) AGSPoint* mappoint;
+@property (nonatomic, retain) AGSGraphic *graphic;
 
 - (IBAction)presentTableOfContents:(id)sender;
 

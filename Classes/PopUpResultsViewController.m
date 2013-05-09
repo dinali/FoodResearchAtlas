@@ -10,17 +10,18 @@
 // See the use restrictions at http://help.arcgis.com/en/sdk/10.0/usageRestrictions.htm
 //
 
-#import "ResultsViewController.h"
+#import "PopUpResultsViewController.h"
 
 
-@implementation ResultsViewController
+@implementation PopUpResultsViewController
 
 @synthesize results = _results;
 @synthesize tableView = _tableView;
+@synthesize resultsArray = _resultsArray;
 
 - (IBAction)done:(id)sender
 {
-    [self dismissModalViewControllerAnimated:YES];
+    [self dismissViewControllerAnimated:YES completion:NULL];
 }
 
 #pragma mark -
@@ -34,6 +35,7 @@
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     //if results is not nil and we have results, return that number
     return ((self.results != nil && [self.results count] > 0) ? [self.results count] : 0);
+   //  return ((self.resultsArray != nil && [self.resultsArray count] > 0) ? [self.resultsArray count] : 0);
 }
 
 // Customize the appearance of table view cells.
@@ -46,10 +48,24 @@
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:CellIdentifier];
     }
     
-    // Set up the cell...
+  //  NSInteger row = [indexPath row];
+  //  NSDictionary *object = [datasouce objectAtIndex:row]; // datasource is an array
     
+  //  NSArray *temp = [divisionDict objectForKey:[divisionArray objectAtIndex:[indexPath section]]];
+  //  [[cell textLabel] setText:[temp objectAtIndex:[indexPath row]]];
+    
+   // NSArray *temp = [[self.results objectForKey:[]]
     //text is the key at the given indexPath
+
     NSString *keyAtIndexPath = [[self.results allKeys] objectAtIndex:indexPath.row];
+    
+    // retrieve the value from the dictionary stored in the resultsArray at this row location
+  //NSString *keyAtIndexPath = [_resultsArray objectAtIndex:[indexPath row]];
+    
+  //  NSDictionary *oneEntryDict = [_resultsArray objectAtIndex:[indexPath row]];
+  //  NSArray *tempArray = [oneEntryDict objectForKey:[_resultsArray objectAtIndex:[indexPath row]]];
+  //  NSString *keyAtIndexPath = [tempArray objectAtIndex:[indexPath row]];
+
     cell.textLabel.text = keyAtIndexPath;
     
     //detail text is the value associated with the key above
@@ -70,8 +86,7 @@
         //not a NSDecimalNumber or a NSString, 
         cell.detailTextLabel.text = @"N/A";
     }
-	cell.textLabel.font = [UIFont systemFontOfSize:13.0];
-    
+	
     return cell;
 }
 
@@ -81,6 +96,10 @@
     return (YES);
 }
 
+- (void)dealloc {
+    self.results = nil;
+    self.tableView = nil;
+}
 
 
 @end

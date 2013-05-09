@@ -12,6 +12,7 @@
 #import "MainViewController.h"
 #import "TOCViewController.h"
 #import "ResultsViewController.h"
+//#import "PopUpResultsViewController.h"
 
 @interface MainViewController()
 
@@ -23,9 +24,26 @@
 
 // these have to be paired, can't substitute maps?
 static NSString *kGeoLocatorURL = @"http://tasks.arcgisonline.com/ArcGIS/rest/services/Locators/ESRI_Places_World/GeocodeServer";
+
+// this is not the right map, but it works with the geocoder
 static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest/services/ESRI_StreetMap_World_2D/MapServer";
 
-@synthesize mapView=_mapView;
+//static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer";
+
+// http://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer
+// this is the right satellite map, but the geocoder doesn't return results
+//static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer";
+
+// this is the right satellite map, but the geocoder doesn't return results
+//static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
+
+// popup
+#define kDynamicMapServiceURL @"http://gis2.ers.usda.gov/arcgis/rest/services/foodaccess/MapServer"
+
+@synthesize graphic = _graphic;
+@synthesize identifyTask=_identifyTask,identifyParams=_identifyParams;
+@synthesize mappoint = _mappoint;
+
 @synthesize infoButton=_infoButton;
 @synthesize tocViewController = _tocViewController;
 @synthesize popOverController = _popOverController;
@@ -46,15 +64,20 @@ static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest
 	AGSTiledMapServiceLayer *tiledLyr = [AGSTiledMapServiceLayer tiledMapServiceLayerWithURL:mapUrl];
 	[self.mapView addMapLayer:tiledLyr withName:@"Base Map"];
     
-    // NEW! Food Research Atlas //
-    NSURL *mapUrl3 = [NSURL URLWithString:@"http://gis2.ers.usda.gov/arcgis/rest/services/foodaccess/MapServer"];
+   // dispatch_queue_t kBgQueue = dispatch_get_global_queue(
+                                                          //DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
     
-	AGSDynamicMapServiceLayer *dynamicLyr3 = [AGSDynamicMapServiceLayer dynamicMapServiceLayerWithURL:mapUrl3];
-	[self.mapView addMapLayer:dynamicLyr3 withName:@"Food Research Atlas"];
+  //  dispatch_async(kBgQueue, ^{
+        // NEW! Food Research Atlas //
+        NSURL *mapUrl3 = [NSURL URLWithString:kDynamicMapServiceURL];
+        AGSDynamicMapServiceLayer *dynamicLyr3 = [AGSDynamicMapServiceLayer dynamicMapServiceLayerWithURL:mapUrl3];
+        [self.mapView addMapLayer:dynamicLyr3 withName:@"Food Research Atlas"];
+  //  });
     
-    //add a feature layer. 
-   // AGSFeatureLayer *featureLayer = [AGSFeatureLayer featureServiceLayerWithURL:[NSURL URLWithString:@"http://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/2"] mode:AGSFeatureLayerModeOnDemand];
-   // [self.mapView addMapLayer:featureLayer withName:@"Satellite"];
+    
+    //add a feature layer -- this doesn't display
+    //AGSFeatureLayer *featureLayer = [AGSFeatureLayer featureServiceLayerWithURL:[NSURL URLWithString:@"http://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"] mode:AGSFeatureLayerModeOnDemand];
+    //[self.mapView addMapLayer:featureLayer withName:@"Satellite"];
     
     //Zooming to an initial envelope with the specified spatial reference of the map.
 	AGSSpatialReference *sr = [AGSSpatialReference webMercatorSpatialReference];
@@ -65,16 +88,34 @@ static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest
                                                 ymax:7754274.75670459 
 									spatialReference:sr];
 	[self.mapView zoomToEnvelope:env animated:YES];
+    
+    // current location marker: user's current location as starting point
+    [self.mapView.locationDisplay startDataSource];
 
     // ADDED FOR GEOCODING FIND ADDRESS
     
     //set the delegate on the mapView so we get notifications for user interaction with the callout for geocoding
     self.mapView.callout.delegate = self;
+    
     //create the graphics layer that the geocoding result
     //will be stored in and add it to the map
     self.graphicsLayer = [AGSGraphicsLayer graphicsLayer];
-    [self.mapView addMapLayer:self.graphicsLayer withName:@"Graphics Layer"];
-        
+    [self.mapView addMapLayer:self.graphicsLayer withName:@"Search Layer"];
+    
+    // this works but Layer 3 is displayed!
+  //  [self.mapView addMapLayer:self.graphicsLayer withName:@""];
+    
+    // ADDED FOR POPUP BY LOCATION
+    _mapView.touchDelegate = self;
+    
+    //create identify task
+	self.identifyTask = [AGSIdentifyTask identifyTaskWithURL:[NSURL URLWithString:kDynamicMapServiceURL]];
+	self.identifyTask.delegate = self;
+	
+	//create identify parameters
+	self.identifyParams = [[AGSIdentifyParameters alloc] init];
+    
+    self.mapView.showMagnifierOnTapAndHold = YES;
 }
 
 
@@ -167,7 +208,7 @@ static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest
 #pragma mark -
 #pragma mark AGSCalloutDelegate -- DISPLAYS THE box with related information
 
-- (void) didClickAccessoryButtonForCallout:(AGSCallout *) 	callout
+- (void) didClickAccessoryButtonForCallout:(AGSCallout *) callout
 {
     
     AGSGraphic* graphic = (AGSGraphic*) callout.representedObject;
@@ -309,5 +350,81 @@ static NSString *kMapServiceURL = @"http://services.arcgisonline.com/ArcGIS/rest
     [searchBar resignFirstResponder];
 }
 
+#pragma mark - AGSCalloutDelegate methods
 
+- (void)mapView:(AGSMapView *)mapView didClickAtPoint:(CGPoint)screen mapPoint:(AGSPoint *)mappoint graphics:(NSDictionary *)graphicsDict {
+    
+    //store for later use
+    self.mappoint = mappoint;
+    
+	//the layer we want is layer ‘5’ (from the map service doc)
+	self.identifyParams.layerIds = [NSArray arrayWithObjects:[NSNumber numberWithInt:1], nil];
+	self.identifyParams.tolerance = 3;
+	self.identifyParams.geometry = self.mappoint;
+	self.identifyParams.size = self.mapView.bounds.size;
+	self.identifyParams.mapEnvelope = self.mapView.visibleArea.envelope;
+	self.identifyParams.returnGeometry = YES;
+	self.identifyParams.layerOption = AGSIdentifyParametersLayerOptionAll;
+	self.identifyParams.spatialReference = self.mapView.spatialReference;
+    
+	//execute the task
+	[self.identifyTask executeWithParameters:self.identifyParams];
+}
+
+
+#pragma mark - AGSIdentifyTaskDelegate methods
+//results are returned
+- (void)identifyTask:(AGSIdentifyTask *)identifyTask operation:(NSOperation *)op didExecuteWithIdentifyResults:(NSArray *)results {
+    
+    //clear previous results
+    [self.graphicsLayer removeAllGraphics];
+    
+    if ([results count] > 0) {
+        
+        //add new results
+        AGSSymbol* symbol = [AGSSimpleFillSymbol simpleFillSymbol];
+        symbol.color = [UIColor colorWithRed:0 green:0 blue:1 alpha:0.5];
+        
+        NSString *title = nil;
+        NSUInteger layerID = 0;
+        
+        @try {
+            
+            // for each result, set the symbol and add it to the graphics layer
+            for (AGSIdentifyResult* result in results) {
+                result.feature.symbol = symbol;
+                [self.graphicsLayer addGraphic:result.feature];
+                _graphic = result.feature;
+                title = result.layerName;
+                layerID = result.layerId; // can this be a filter? not used
+            }
+            
+            self.mapView.callout.title = title; // this is just the title
+            self.mapView.callout.detail = @"Click for details";
+            
+            //show callout
+            //[self.mapView.callout showCalloutAt:self.mappoint pixelOffset:CGPointZero animated:YES];
+            
+            // Show callout for graphic
+            [self.mapView.callout showCalloutAtPoint:self.mappoint forGraphic:_graphic animated:YES];
+        }
+        @catch (NSException * e) {
+            NSLog(@"Exception: %@", e);
+        }
+        @finally {
+            NSLog(@"finally");
+        }
+    }
+}
+
+//if there's an error with the query display it to the user
+- (void)identifyTask:(AGSIdentifyTask *)identifyTask operation:(NSOperation *)op didFailWithError:(NSError *)error {
+	
+	UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Error"
+													message:[error localizedDescription]
+												   delegate:nil
+										  cancelButtonTitle:@"OK"
+										  otherButtonTitles:nil];
+	[alert show];
+}
 @end
